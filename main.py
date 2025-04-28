@@ -1,9 +1,13 @@
 import requests
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
+import warnings
+
+warnings.filterwarnings("ignore")  # Suppress warnings for clean output
 
 """
 Build a Random Forest model using NYPD crime data to predict crime occurrence or type.
@@ -91,3 +95,71 @@ target = 'law_cat_cd'  # Crime severity: FELONY, MISDEMEANOR, VIOLATION
 
 # If a column doesn't have any of the target values
 df = df.dropna(subset=[target])
+
+
+# RANDOM FOREST PORTION
+
+X = df[features] 
+y = df[target]
+
+# Split data into train/test sets
+# We have a fixed random seed for reproducability
+# We're using 80% of the data to train our features and targets
+# We're using the other 20% for testing
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+
+# Train Random Forest
+# class_weight="balanced" because 
+#   - One class (like "Felony") happens way more often than others (like "Violation"). = imbalance
+#   - It makes the model pay more attention to underrepresented classes. Gives higher weight to rare classes and lower weight to frequent classes
+
+# For the future: See what the other variations of trees produce options are: balanced_subsample (Balances ind trees), {dict} we manually set, none treats all classes equally
+
+# n_estimator - How many decision trees to build inside random forest. More = better accuracy, beyond 1000 not worth it
+#   - Can slightly change F-1 Scores
+rf_model = RandomForestClassifier(
+    n_estimators=100, random_state=42, n_jobs=-1, class_weight="balanced"
+)
+
+rf_model.fit(X_train, y_train)
+
+# Cross-Validation (5-fold)
+cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5, scoring='f1_macro')
+
+print("Cross-Validation F1 Macro Scores:", cv_scores)
+print("Average CV F1 Macro Score:", np.mean(cv_scores))
+
+# 7. Evaluate on Test Set
+y_pred = rf_model.predict(X_test)
+
+print("\nClassification Report on Test Set:")
+print(classification_report(y_test, y_pred))
+
+print("\nConfusion Matrix on Test Set:")
+print(confusion_matrix(y_test, y_pred))
+
+
+importances = rf_model.feature_importances_
+feature_names = X.columns
+
+plt.figure(figsize=(8, 5))
+plt.barh(feature_names, importances)
+plt.xlabel('Feature Importance')
+plt.title('Random Forest Feature Importance')
+plt.show()
+
+# 9. Export Test Results to CSV
+results_df = pd.DataFrame({
+    'Actual': y_test,
+    'Predicted': y_pred
+})
+
+results_df['Correct'] = results_df['Actual'] == results_df['Predicted']
+
+results_df.to_csv('crime_predictions_results.csv', index=False)
+
+print("Predictions exported to crime_predictions_results.csv")

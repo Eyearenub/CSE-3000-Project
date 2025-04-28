@@ -125,19 +125,35 @@ rf_model = RandomForestClassifier(
     n_estimators=100, random_state=42, n_jobs=-1, class_weight="balanced"
 )
 
+
 rf_model.fit(X_train, y_train)
 
 # Cross-Validation (5-fold)
+# - Splits the training data in 5 diff parts 
+# Trains and tests the model 5 diff times
+# Calculates the F1 Macro for each split
+# Use 4 models for training and the last for testing
+ 
 cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5, scoring='f1_macro')
 
 print("Cross-Validation F1 Macro Scores:", cv_scores)
 print("Average CV F1 Macro Score:", np.mean(cv_scores))
 
-# 7. Evaluate on Test Set
+# Evaluate on Test Set
 y_pred = rf_model.predict(X_test)
+
+
+# F1 Score tells 
+#   - How many felonies were caught correctly
+#   - How precisely it labels felonies
 
 print("\nClassification Report on Test Set:")
 print(classification_report(y_test, y_pred))
+
+
+# Confusion matrix
+#   - How many times you predicted Felony correctly
+#   - How many times you predicted a misdemeanor when it was really a felony
 
 print("\nConfusion Matrix on Test Set:")
 print(confusion_matrix(y_test, y_pred))

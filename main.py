@@ -168,7 +168,7 @@ plt.xlabel('Feature Importance')
 plt.title('Random Forest Feature Importance')
 plt.show()
 
-# 9. Export Test Results to CSV
+# Export Test Results to CSV
 results_df = pd.DataFrame({
     'Actual': y_test,
     'Predicted': y_pred

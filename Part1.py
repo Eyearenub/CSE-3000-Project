@@ -283,12 +283,6 @@ plt.show()
 
 
 
-
-
-
-
-
-
 # CREATING GRAPH
 class_labels = ['FELONY', 'MISDEMEANOR', 'VIOLATION']
 grouped = final_report_df[final_report_df['Class'].isin(class_labels)]

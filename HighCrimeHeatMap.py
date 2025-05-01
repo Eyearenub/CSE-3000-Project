@@ -10,7 +10,6 @@ import json
 warnings.filterwarnings("ignore")
 
 """
-
 This code predicts the crimes for a year and generates a prediction heat map. 
 We train the data on 2024 crimes and then test on 2025.
 

@@ -200,7 +200,7 @@ for name, model in models.items():
 final_report_df = pd.concat(all_reports, ignore_index=True)
 
 # Export all classification reports to CSV
-final_report_df.to_csv('multi_model_classification_reports.csv', index=False)
+final_report_df.to_csv('data/outputs/multi_model_classification_reports.csv', index=False)
 
 # BACK TESTING - PREDICTING THE NEXT MONTH
 
@@ -225,7 +225,7 @@ for i in range(1, len(months)):  # start at month 1 (second month)
     train_df = df[df['year_month'].isin(train_months)]
     test_df = df[df['year_month'] == test_month]
 
-    # Skip if not enough data
+    # Number of features * 10, determining if we have enough test data
     if len(test_df) < 30:
         continue
 
@@ -255,12 +255,10 @@ for i in range(1, len(months)):  # start at month 1 (second month)
 
 # Create DataFrame and export
 backtest_df = pd.DataFrame(backtest_results)
-backtest_df.to_csv('backtesting_model_performance.csv', index=False)
-print("\n✅ Backtesting results saved to backtesting_model_performance.csv")
+backtest_df.to_csv('data/outputs/backtesting_model_performance.csv', index=False)
+print("\n Backtesting results saved to backtesting_model_performance.csv")
 
-# --------------------------------------
-# 📈 PLOT BACKTESTING PERFORMANCE
-# --------------------------------------
+
 
 # Pivot for plotting
 pivot = backtest_df.pivot(index='Month', columns='Model', values='F1_Macro')
@@ -278,7 +276,7 @@ plt.grid(True, linestyle='--', alpha=0.5)
 plt.legend()
 plt.xticks(rotation=45)
 plt.tight_layout()
-plt.savefig('backtesting_f1_scores_over_time.png')
+plt.savefig('Graphs/backtesting_f1_scores_over_time.png')
 plt.show()
 
 
@@ -313,7 +311,7 @@ plt.ylim(0, 1)
 plt.legend()
 plt.grid(axis='y', linestyle='--', alpha=0.5)
 plt.tight_layout()
-plt.savefig('per_class_f1_by_model.png')
+plt.savefig('Graphs/per_class_f1_by_model.png')
 plt.show()
 
 

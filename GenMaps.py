@@ -116,3 +116,5 @@ for race_col, (legend_label, color_scale) in race_columns.items():
     filename = f"race_maps_output/nyc_{race_col.lower().replace(' ', '_')}.html"
     m.save(filename)
     print(f"✅ Saved map: {filename}")
+
+    # Saved

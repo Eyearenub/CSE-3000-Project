@@ -202,6 +202,9 @@ final_report_df = pd.concat(all_reports, ignore_index=True)
 # Export all classification reports to CSV
 final_report_df.to_csv('data/outputs/multi_model_classification_reports.csv', index=False)
 
+
+
+
 # BACK TESTING - PREDICTING THE NEXT MONTH
 
 # Sorting and parsing the data
@@ -259,7 +262,6 @@ backtest_df.to_csv('data/outputs/backtesting_model_performance.csv', index=False
 print("\n Backtesting results saved to backtesting_model_performance.csv")
 
 
-
 # Pivot for plotting
 pivot = backtest_df.pivot(index='Month', columns='Model', values='F1_Macro')
 pivot = pivot.sort_index()
@@ -315,4 +317,3 @@ plt.savefig('Graphs/per_class_f1_by_model.png')
 plt.show()
 
 
-# BACK TESTING

@@ -130,6 +130,8 @@ def _bar(df, xcol, ycol, title, outfile):
 # -------------------------------------------------------------------
 
 def disparate_impact(df, group_col, positive_label='FELONY', min_rows=200):
+    
+    
     # 1) Keep only rows with enough data for the group
     vc = df[group_col].value_counts()
     eligible = vc[vc >= min_rows].index

@@ -51,11 +51,15 @@ df['day_of_week']  = df['cmplnt_fr_dt'].dt.dayofweek
 df['month']        = df['cmplnt_fr_dt'].dt.month
 df['hour_of_day']  = df['cmplnt_fr_tm'].dt.hour
 
+
+df['sus_race_code'] = df['susp_race'].astype('category').cat.codes
+df['vic_race_code'] = df['vic_race'].astype('category').cat.codes
 df['borough_code'] = df['boro_nm'].astype('category').cat.codes
 df['is_completed'] = (df['crm_atpt_cptd_cd'] == 'COMPLETED').astype(int)
 
+
 df['year']         = df['cmplnt_fr_dt'].dt.year
-features = ['day_of_week','month','hour_of_day','borough_code','is_completed']
+features = ['day_of_week','month','hour_of_day','sus_race_code','vic_race_code','borough_code','is_completed']
 
 # split
 train_df  = df[df['year'] == 2024].copy()

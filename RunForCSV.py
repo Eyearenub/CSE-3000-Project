@@ -124,8 +124,38 @@ def _bar(df, xcol, ycol, title, outfile):
     plt.close()
     print(f"  ↳ saved {outfile}")
 
+
 # -------------------------------------------------------------------
-# 5) Main routine
+# 5) Disparate Impact
+# -------------------------------------------------------------------
+
+def disparate_impact(df, group_col, positive_label='FELONY', min_rows=200):
+    # 1) Keep only rows with enough data for the group
+    vc = df[group_col].value_counts()
+    eligible = vc[vc >= min_rows].index
+    
+    # 2) Compute selection rate per group
+    rows = []
+    for g in eligible:
+        gdf = df[df[group_col] == g]
+        sel_rate = (gdf['predicted_label'] == positive_label).mean()
+        rows.append({'Group': g, 'N': len(gdf), 'SelectionRate': sel_rate})
+    
+    di = pd.DataFrame(rows)
+    
+    # 3) Pick the *most favored* group as reference (lowest adverse‑outcome rate)
+    ref_rate = di['SelectionRate'].min()  # if predicting *adverse* labels
+    di['ImpactRatio'] = di['SelectionRate'] / ref_rate
+    
+    # 4) Flag potential adverse impact
+    di['<80% Rule Violated?'] = di['ImpactRatio'] < 0.80
+    
+    di.to_csv(f'disparate_impact_{group_col}.csv', index=False)
+    print(f'✔︎ disparate_impact_{group_col}.csv written')
+    return di
+
+# -------------------------------------------------------------------
+# 6) Main routine
 # -------------------------------------------------------------------
 
 def main():
@@ -135,6 +165,8 @@ def main():
     save_metrics(df)
     bias_by_race(df)
     bias_by_borough(df)
+    disparate_impact(df, 'vic_race')
+    disparate_impact(df, 'boro_nm')
     print("All done ✔︎  Check the generated CSVs & PNG plots.")
 
 

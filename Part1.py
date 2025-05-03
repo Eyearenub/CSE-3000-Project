@@ -102,8 +102,12 @@ df['borough_code'] = df['boro_nm'].astype('category').cat.codes
 # 'COMPLETED' becomes 1, 'ATTEMPTED' becomes 0
 df['is_completed'] = (df['crm_atpt_cptd_cd'] == 'COMPLETED').astype(int)
 
+df['sus_race_code'] = df['susp_race'].astype('category').cat.codes
+df['vic_race_code'] = df['vic_race'].astype('category').cat.codes
+
+
 # Select features and target
-features = ['day_of_week', 'month', 'hour_of_day', 'borough_code', 'is_completed']
+features = ['day_of_week','month','hour_of_day','sus_race_code','vic_race_code','borough_code','is_completed']
 target = 'law_cat_cd'  # Crime severity: FELONY, MISDEMEANOR, VIOLATION
 
 # If a column doesn't have any of the target values

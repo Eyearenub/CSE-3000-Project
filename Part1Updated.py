@@ -412,6 +412,96 @@ def evaluate_and_save_models(models, data_splits):
     
     print("\nAll model evaluations complete and saved.")
 
+def backtesting(df):
+    # BACK TESTING - PREDICTING THE NEXT MONTH
+    models = {
+    'Random Forest': RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42),
+    'Logistic Regression': LogisticRegression(max_iter=1000, class_weight='balanced'),
+    'SVM': SVC(class_weight='balanced'),
+    'KNN': KNeighborsClassifier(),
+    'Decision Tree': DecisionTreeClassifier(class_weight='balanced', random_state=42)
+    }
+
+    # Select features and target
+    features = ['day_of_week','month','hour_of_day','sus_race_code','vic_race_code','borough_code','is_completed']
+    target = 'law_cat_cd'  # Crime severity: FELONY, MISDEMEANOR, VIOLATION
+
+    # If a column doesn't have any of the target values
+    df = df.dropna(subset=[target])
+    initial3 = len(df)
+
+    # Sorting and parsing the data
+    df['cmplnt_fr_dt'] = pd.to_datetime(df['cmplnt_fr_dt'], errors='coerce')
+    df = df.sort_values('cmplnt_fr_dt')
+    df['year_month'] = df['cmplnt_fr_dt'].dt.to_period('M')
+
+    # Filter for only 2024
+    df = df[df['cmplnt_fr_dt'].dt.year == 2024]
+
+    # Get unique months
+    months = sorted(df['year_month'].unique())
+
+    # Prepare backtest tracking
+    backtest_results = []
+
+    for i in range(1, len(months)):  # start at month 1 (second month)
+        train_months = months[:i]
+        test_month = months[i]
+
+        train_df = df[df['year_month'].isin(train_months)]
+        test_df = df[df['year_month'] == test_month]
+
+        # Number of features * 10, determining if we have enough test data
+        if len(test_df) < 30:
+            continue
+
+        X_train = train_df[features]
+        y_train = train_df[target]
+        X_test = test_df[features]
+        y_test = test_df[target]
+
+        print(f"\nBacktesting on {test_month}...")
+
+        for model_name, model in models.items():
+            try:
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                report = classification_report(y_test, y_pred, output_dict=True)
+                macro_f1 = report['macro avg']['f1-score']
+
+                backtest_results.append({
+                    'Month': str(test_month),
+                    'Model': model_name,
+                    'F1_Macro': macro_f1
+                })
+                print(f"{model_name}: F1_macro = {macro_f1:.3f}")
+
+            except Exception as e:
+                print(f"{model_name} failed on {test_month}: {e}")
+
+    # Create DataFrame and export
+    backtest_df = pd.DataFrame(backtest_results)
+    backtest_df.to_csv('data/outputs/backtesting_model_performance.csv', index=False)
+    print("\n Backtesting results saved to backtesting_model_performance.csv")
+
+
+    # Pivot for plotting
+    pivot = backtest_df.pivot(index='Month', columns='Model', values='F1_Macro')
+    pivot = pivot.sort_index()
+
+    plt.figure(figsize=(10, 6))
+    for model in pivot.columns:
+        plt.plot(pivot.index.astype(str), pivot[model], marker='o', label=model)
+
+    plt.title('Backtesting: Monthly F1 Macro Score per Model (2024)')
+    plt.xlabel('Month')
+    plt.ylabel('F1 Macro Score')
+    plt.ylim(0, 1)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig('Graphs/backtesting_f1_scores_over_time.png')
 
 def interactive_inference(category_mappings):
     """
@@ -564,6 +654,9 @@ def main():
     
     # Train, evaluate, and save models
     evaluate_and_save_models(models, data_splits)
+    
+    # Back testing with months
+    backtesting(crime_df)
     
     # Run interactive inference
     interactive_inference(category_mappings)

@@ -19,12 +19,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import math
+import scipy.stats as st
 from sklearn.metrics import classification_report, confusion_matrix
 
+
 FILES = {
-    'FELONY':       'predicted_felonys_2025.csv',         # original filename has a typo
-    'MISDEMEANOR':  'predicted_misdemeanors_2025.csv',
-    'VIOLATION':    'predicted_violations_2025.csv'
+    'FELONY':       'data/outputs/predicted_felonys_2025.csv',         # original filename has a typo
+    'MISDEMEANOR':  'data/outputs/predicted_misdemeanors_2025.csv',
+    'VIOLATION':    'data/outputs/predicted_violations_2025.csv'
 }
 
 INCOME_MAP = {
@@ -59,15 +62,15 @@ def save_metrics(df):
 
     report = classification_report(y_true, y_pred, output_dict=True)
     report_df = pd.DataFrame(report).transpose()
-    report_df.to_csv('metrics_classification_report.csv', index_label='Class')
-    print("✔︎ metrics_classification_report.csv written")
+    report_df.to_csv('data/outputs/metrics_classification_report.csv', index_label='Class')
+    print("✔︎ data/outputs/metrics_classification_report.csv written")
 
     cm = confusion_matrix(y_true, y_pred, labels=list(FILES.keys()))
     cm_df = pd.DataFrame(cm,
                          index=[f"Actual {c.title()}" for c in FILES.keys()],
                          columns=[f"Pred {c.title()}" for c in FILES.keys()])
-    cm_df.to_csv('metrics_confusion_matrix.csv')
-    print("✔︎ metrics_confusion_matrix.csv written")
+    cm_df.to_csv('data/outputs/metrics_confusion_matrix.csv')
+    print("✔︎ data/outputs/metrics_confusion_matrix.csv written")
 
 # -------------------------------------------------------------------
 # 3) Bias: False‑Positive Rate by victim race & by borough
@@ -89,8 +92,8 @@ def bias_by_race(df):
         rows.append({'Victim Race': race, 'Count': len(grp), 'FPR_Felony': fpr(grp)})
 
     race_df = pd.DataFrame(rows).sort_values('FPR_Felony', ascending=False)
-    race_df.to_csv('bias_fpr_by_race.csv', index=False)
-    print("✔︎ bias_fpr_by_race.csv written")
+    race_df.to_csv('data/outputs/bias_fpr_by_race.csv', index=False)
+    print("✔︎ data/outputs/bias_fpr_by_race.csv written")
     _bar(race_df, 'Victim Race', 'FPR_Felony', 'False‑Positive Rate (Felony) by Victim Race',
          'plot_fpr_race.png')
 
@@ -104,8 +107,8 @@ def bias_by_borough(df):
         rows.append({'Borough': boro, 'Median_Income': inc, 'Count': len(grp), 'FPR_Felony': fpr(grp)})
 
     boro_df = pd.DataFrame(rows).sort_values('FPR_Felony', ascending=False)
-    boro_df.to_csv('bias_fpr_by_borough.csv', index=False)
-    print("✔︎ bias_fpr_by_borough.csv written")
+    boro_df.to_csv('data/outputs/bias_fpr_by_borough.csv', index=False)
+    print("✔︎ data/outputs/bias_fpr_by_borough.csv written")
     _bar(boro_df, 'Borough', 'FPR_Felony', 'False‑Positive Rate (Felony) by Borough',
          'plot_fpr_borough.png')
 
@@ -152,13 +155,67 @@ def disparate_impact(df, group_col, positive_label='FELONY', min_rows=200):
     # 4) Flag potential adverse impact
     di['<80% Rule Violated?'] = di['ImpactRatio'] < 0.80
     
-    di.to_csv(f'disparate_impact_{group_col}.csv', index=False)
-    print(f'✔︎ disparate_impact_{group_col}.csv written')
+    di.to_csv(f'data/outputs/disparate_impact_{group_col}.csv', index=False)
+    print(f'✔︎ data/outputs/disparate_impact_{group_col}.csv written')
     return di
 
 # -------------------------------------------------------------------
 # 6) Main routine
 # -------------------------------------------------------------------
+def build_fairness_table(data: pd.DataFrame,
+                         group_col: str,
+                         positive_label: str = "FELONY",
+                         min_n: int = 200,
+                         alpha: float = 0.05) -> pd.DataFrame:
+    """
+    Produce a DataFrame with:
+        SelectionRate      – P(predicted == FELONY)
+        FP                 – false positives
+        TN                 – true negatives
+        FPR                – false‑positive rate
+        CI_low / CI_high   – 95 % Wald CI for FPR
+        ImpactRatio        – selection‑rate / max(selection‑rate)
+        Violation_80pct    – True if ImpactRatio < 0.80
+    Rows with FP+TN < min_n are skipped (to avoid crazy CIs).
+
+    The function also returns the FourFifthsRatio (min / max selection‑rate)
+    so you can print a single global compliance flag.
+    """
+    rows = []
+    z = st.norm.ppf(1 - alpha / 2)
+    for grp, g in data.groupby(group_col):
+        sel_rate = (g["predicted_label"] == positive_label).mean()
+        fp = ((g["predicted_label"] == positive_label) &
+              (g["law_cat_cd"] != positive_label)).sum()
+        tn = ((g["predicted_label"] != positive_label) &
+              (g["law_cat_cd"] != positive_label)).sum()
+        n_fpr = fp + tn                      # denominator for FPR
+        if n_fpr < min_n:
+            continue
+        fpr = fp / n_fpr
+        se = math.sqrt(fpr * (1 - fpr) / n_fpr)
+        ci_low = max(0, fpr - z * se)
+        ci_high = min(1, fpr + z * se)
+        rows.append({
+            "Group": grp,
+            "SelectionRate": sel_rate,
+            "FP": fp,
+            "TN": tn,
+            "FPR": fpr,
+            "CI_low": ci_low,
+            "CI_high": ci_high
+        })
+
+    tbl = pd.DataFrame(rows)
+
+    # --- Four‑fifths rule ------------------------------------------------
+    max_rate = tbl["SelectionRate"].max()
+    min_rate = tbl["SelectionRate"].min()
+    tbl["ImpactRatio"] = tbl["SelectionRate"] / max_rate
+    tbl["Violation_80pct"] = tbl["ImpactRatio"] < 0.80
+    four_fifths_ratio = min_rate / max_rate
+
+    return tbl.sort_values("FPR").reset_index(drop=True), four_fifths_ratio
 
 def main():
     df = load_predictions()
@@ -169,7 +226,25 @@ def main():
     bias_by_borough(df)
     disparate_impact(df, 'vic_race')
     disparate_impact(df, 'boro_nm')
-    print("All done ✔︎  Check the generated CSVs & PNG plots.")
+
+    race_tbl, race_ff = build_fairness_table(df, "vic_race")
+    boro_tbl, boro_ff = build_fairness_table(df, "boro_nm")
+
+    # Save detailed CSVs for the appendix
+    race_tbl.to_csv("bias_fairness_by_race.csv", index=False)
+    boro_tbl.to_csv("bias_fairness_by_borough.csv", index=False)
+
+    print("\n=== Four‑fifths rule summary ===")
+    print(f"Victim race  – ratio = {race_ff:.2f}  "
+        f"({'VIOLATION' if race_ff < 0.80 else 'OK'})")
+    print(f"Borough      – ratio = {boro_ff:.2f}  "
+        f"({'VIOLATION' if boro_ff < 0.80 else 'OK'})")
+
+    print("\nDetailed tables written to:")
+    print("  • bias_fairness_by_race.csv")
+    print("  • bias_fairness_by_borough.csv")
+    print("All done  Check the generated CSVs & PNG plots.")
+
 
 
 if __name__ == "__main__":

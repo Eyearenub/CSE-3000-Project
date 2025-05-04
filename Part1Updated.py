@@ -663,4 +663,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Fetch crime data
+    crime_df = fetch_crime_data()
+    
+    # Clean and preprocess data
+    cleaned_df, category_mappings = clean_and_preprocess(crime_df)
+
+    interactive_inference(category_mappings)
